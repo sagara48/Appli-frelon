@@ -1,11 +1,18 @@
+# Compile l'APK Android sur les serveurs de GitHub (onglet Actions) à chaque envoi de projet.zip.
+# L'APK est publiée dans « Releases » (étiquette apk-<numéro>) : l'appli y cherche ses mises à jour.
+# Elle reste aussi téléchargeable en bas de la page de la compilation, rubrique « Artifacts ».
 name: APK Android
 on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write # pour publier la Release
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_BUILD: ${{ github.run_number }} # numéro de version affiché et comparé par l'appli
     steps:
       - uses: actions/checkout@v4
       - name: Décompression du projet
@@ -24,7 +31,16 @@ jobs:
         run: npx expo prebuild --platform android --no-install
       - name: Compilation de l'APK
         run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Nom de l'APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk frelons-${{ github.run_number }}.apk
       - uses: actions/upload-artifact@v4
         with:
           name: appli-frelons-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: frelons-${{ github.run_number }}.apk
+      - name: Publication (Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "apk-${{ github.run_number }}" "frelons-${{ github.run_number }}.apk" \
+            --title "Appli Frelons n° ${{ github.run_number }}" \
+            --notes "$(git log -1 --pretty=%s)" --latest
